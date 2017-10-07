@@ -5,6 +5,8 @@ import camera
 import gamemap
 import cursor
 import console
+import actor
+import villager
 
 
 class historia():
@@ -16,9 +18,12 @@ class historia():
         self.camera = camera.Camera(40, 40)
         self.cursor = cursor.Cursor()
         self.console = console.Console()
+        self.actor_list = []
 
         self.mouse_x = 0
         self.mouse_y = 0
+
+        self.time = 0.0
 
     def setup(self):
         print("setup...")
@@ -50,6 +55,15 @@ class historia():
         blt.put(3, 3, 0xE000+2)
         blt.refresh()
 
+    def basic_start(self):
+        # actor setup
+
+        # create a basic villager token
+        vil1 = villager.Villager(10, 10, 1, 0.0)
+        vil1.populate_new_random(2, 20.0, 3.0)
+
+        self.actor_list.append(vil1)
+
     def print_grid(self):
         blt.layer(1)
         blt.clear()
@@ -61,6 +75,12 @@ class historia():
                 # print(type(0xE000))
                 hexcode = 0xE000 + self.gmap.grid[gridx][gridy].value
                 blt.put(c * 2, r, hexcode)
+
+    def print_actors(self):
+        blt.layer(2)
+        blt.clear_area(0, 0, self.camera.width, self.camera.height)
+        for actor in self.actor_list:
+            blt.put(actor.posx * 2, actor.posy, 0xE000 + actor.id.value)
 
     def print_overlay(self):
         blt.layer(4)
@@ -75,9 +95,24 @@ class historia():
         blt.puts(82, 1, "(%d, %d)" % (x, y))
         blt.puts(82, 3, self.console.get_info(self.gmap, x, y))
 
+        for actor in self.actor_list:
+            if actor.posx == x and actor.posy == y:
+                blt.puts(82, 5, actor.id.name)
+                for i, person in enumerate(actor.poplist, 0):
+                    blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
+
+    def mouse_interaction(self):
+        if self.mouse_x > 0 and self.mouse_x < 200:
+            x = self.mouse_x // 2
+            y = self.mouse_y
+            self.cursor.x = x
+            self.cursor.y = y
+
     def mainloop(self):
         # print map
         self.print_grid()
+        # print actors
+        self.print_actors()
         # print overlay
         self.print_overlay()
 
@@ -146,6 +181,7 @@ class historia():
                 self.mouse_x = blt.state(blt.TK_MOUSE_X)
                 self.mouse_y = blt.state(blt.TK_MOUSE_Y)
                 print(self.mouse_x, self.mouse_y)
+                self.mouse_interaction()
 
             game_loop = 1
         return game_loop
@@ -155,6 +191,7 @@ if __name__ == '__main__':
     game = historia()
     # setup game
     game.setup()
+    game.basic_start()
     # test
     # game.hello()
     # game.tile_test()
