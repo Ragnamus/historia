@@ -1,5 +1,7 @@
 from bearlibterminal import terminal as blt
 from e_tile import TileType
+from e_culture import Culture
+from e_person import Gender
 import random
 import camera
 import gamemap
@@ -7,6 +9,7 @@ import cursor
 import console
 import actor
 import villager
+import calendar
 
 
 class historia():
@@ -23,7 +26,7 @@ class historia():
         self.mouse_x = 0
         self.mouse_y = 0
 
-        self.time = 0.0
+        self.time = calendar.Calendar()
 
     def setup(self):
         print("setup...")
@@ -59,8 +62,8 @@ class historia():
         # actor setup
 
         # create a basic villager token
-        vil1 = villager.Villager(10, 10, 1, 0.0)
-        vil1.populate_new_random(2, 20.0, 3.0)
+        vil1 = villager.Villager(10, 10, Culture.GREEK, 1, self.time)
+        vil1.populate_new_random(8, 20.0, 3.0)
 
         self.actor_list.append(vil1)
 
@@ -96,10 +99,18 @@ class historia():
         blt.puts(82, 3, self.console.get_info(self.gmap, x, y))
 
         for actor in self.actor_list:
-            if actor.posx == x and actor.posy == y:
+            if actor.posx == x and actor.posy == y and actor.type == 'Villager':
+                actor.setstats(self.time)
                 blt.puts(82, 5, actor.id.name)
                 for i, person in enumerate(actor.poplist, 0):
                     blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
+                    if person.gender == Gender.MALE:
+                        g = 'M'
+                    else:
+                        g = 'F'
+                    blt.puts(96, 6+i, "%s" % (g))
+                    blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
+                blt.puts(82, 26, "Productivity: %g" % (actor.productivity))
 
     def mouse_interaction(self):
         if self.mouse_x > 0 and self.mouse_x < 200:

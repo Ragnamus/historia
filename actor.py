@@ -5,4 +5,5 @@ class Actor:
         self.id = id
         self.posx = x
         self.posy = y
+        self.type = 'None'
         movable = True
