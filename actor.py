@@ -6,4 +6,4 @@ class Actor:
         self.posx = x
         self.posy = y
         self.type = 'None'
-        movable = True
+        self.movable = True

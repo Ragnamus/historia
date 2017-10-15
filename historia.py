@@ -10,6 +10,7 @@ import console
 import actor
 import villager
 import calendar
+import settlement
 
 
 class historia():
@@ -27,6 +28,12 @@ class historia():
         self.mouse_y = 0
 
         self.time = calendar.Calendar()
+
+        self.page_number = 0
+        self.game_loop = 1
+        self.console_active = False
+        self.current_command = ""
+        self.select = 0
 
     def setup(self):
         print("setup...")
@@ -64,8 +71,19 @@ class historia():
         # create a basic villager token
         vil1 = villager.Villager(10, 10, Culture.GREEK, 1, self.time)
         vil1.populate_new_random(8, 20.0, 3.0)
+        self.gmap.actorgrid[10][10].append(0)
+
+        # create another villager token on top of the first
+        vil2 = villager.Villager(10, 10, Culture.GREEK, 1, self.time)
+        vil2.populate_new_random(5, 20.0, 3.0)
+        self.gmap.actorgrid[10][10].append(1)
+
+        ham1 = settlement.Settlement(12, 5, Culture.GREEK, 1, self.time)
+        self.gmap.actorgrid[12][5].append(2)
 
         self.actor_list.append(vil1)
+        self.actor_list.append(vil2)
+        self.actor_list.append(ham1)
 
     def print_grid(self):
         blt.layer(1)
@@ -84,6 +102,13 @@ class historia():
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
         for actor in self.actor_list:
             blt.put(actor.posx * 2, actor.posy, 0xE000 + actor.id.value)
+        # print selected actor
+        x = self.cursor.x + self.camera.posx
+        y = self.cursor.y + self.camera.posy
+        a = self.gmap.actorgrid[x][y]
+        if a:
+            ai = self.actor_list[a[self.select]]
+            blt.put(ai.posx * 2, ai.posy, 0xE000 + ai.id.value)
 
     def print_overlay(self):
         blt.layer(4)
@@ -98,19 +123,39 @@ class historia():
         blt.puts(82, 1, "(%d, %d)" % (x, y))
         blt.puts(82, 3, self.console.get_info(self.gmap, x, y))
 
-        for actor in self.actor_list:
+        # print(self.gmap.actorgrid[x][y])
+
+        a = self.gmap.actorgrid[x][y]
+        if a:
+            if self.select < len(a):
+                actor = self.actor_list[a[self.select]]
+                blt.puts(82, 5, actor.id.name)
+                if actor.type == 'Villager':
+                    actor.setstats(self.time)
+                    for i, person in enumerate(actor.poplist, 0):
+                        blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
+                        if person.gender == Gender.MALE:
+                            g = 'M'
+                        else:
+                            g = 'F'
+                        blt.puts(99, 6+i, "%s" % (g))
+                        blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
+                    blt.puts(82, 26, "Productivity: %g" % (actor.productivity))
+
+        """for actor in self.actor_list:
+            if actor.posx == x and actor.posy == y:
+                blt.puts(82, 5, actor.id.name)
             if actor.posx == x and actor.posy == y and actor.type == 'Villager':
                 actor.setstats(self.time)
-                blt.puts(82, 5, actor.id.name)
                 for i, person in enumerate(actor.poplist, 0):
                     blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
                     if person.gender == Gender.MALE:
                         g = 'M'
                     else:
                         g = 'F'
-                    blt.puts(96, 6+i, "%s" % (g))
+                    blt.puts(99, 6+i, "%s" % (g))
                     blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
-                blt.puts(82, 26, "Productivity: %g" % (actor.productivity))
+                blt.puts(82, 26, "Productivity: %g" % (actor.productivity))"""
 
     def mouse_interaction(self):
         if self.mouse_x > 0 and self.mouse_x < 200:
@@ -118,6 +163,30 @@ class historia():
             y = self.mouse_y
             self.cursor.x = x
             self.cursor.y = y
+
+    def print_console(self):
+        blt.puts(2, 39, ":%s" % (self.current_command))
+
+    def process_command(self):
+        if self.current_command == "quit":
+            self.game_loop = 0
+        # reset
+        self.current_command = ""
+
+    def reset_selection(self):
+        self.select = 0
+
+    def select_cycle(self, cycle=1):
+        x = self.cursor.x + self.camera.posx
+        y = self.cursor.y + self.camera.posy
+        a = self.gmap.actorgrid[x][y]
+        if a:
+            new_pos = self.select + cycle
+            while new_pos < 0:
+                new_pos += len(a)
+            while new_pos >= len(a):
+                new_pos -= len(a)
+            self.select = new_pos
 
     def mainloop(self):
         # print map
@@ -127,24 +196,43 @@ class historia():
         # print overlay
         self.print_overlay()
 
+        # print command if relevant
+        if self.console_active:
+            self.print_console()
+
         # after printing, refresh
         blt.refresh()
 
         key = blt.read()
         if key in (blt.TK_CLOSE, blt.TK_ESCAPE):
-            game_loop = 0
+            self.game_loop = 0
+
+        elif self.console_active:
+            if key == blt.TK_RETURN:
+                self.game_loop = 1
+                self.console_active = False
+                self.process_command()
+            elif blt.check(blt.TK_CHAR):
+                self.current_command += (chr(blt.state(blt.TK_CHAR)))
+                #print(self.current_command)
+                self.game_loop = 1
+            else:
+                self.game_loop = 1
+
         else:
             if (key == blt.TK_RIGHT and
                     self.camera.posx <
                     self.gmap.width - self.camera.width):
 
                 self.camera.posx += 1
+                self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
 
             elif (key == blt.TK_LEFT and
                   self.camera.posx > 0):
 
                 self.camera.posx -= 1
+                self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
 
             elif (key == blt.TK_DOWN and
@@ -152,50 +240,71 @@ class historia():
                   self.gmap.height - self.camera.height):
 
                 self.camera.posy += 1
+                self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
 
             elif (key == blt.TK_UP and
                   self.camera.posy > 0):
 
                 self.camera.posy -= 1
+                self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
 
             elif key == blt.TK_A:
                 if self.cursor.x > 0:
                     self.cursor.x -= 1
+                    self.reset_selection()
                 elif self.camera.posx > 0:
                     self.camera.posx -= 1
+                    self.reset_selection()
                     # print(self.camera.posx, self.camera.posy)
 
             elif key == blt.TK_D:
                 if self.cursor.x < self.camera.width - 1:
                     self.cursor.x += 1
+                    self.reset_selection()
                 elif self.camera.posx < self.gmap.width - self.camera.width:
                     self.camera.posx += 1
+                    self.reset_selection()
                     # print(self.camera.posx, self.camera.posy)
 
             elif key == blt.TK_W:
                 if self.cursor.y > 0:
                     self.cursor.y -= 1
+                    self.reset_selection()
                 elif self.camera.posy > 0:
                     self.camera.posy -= 1
+                    self.reset_selection()
                     # print(self.camera.posx, self.camera.posy)
 
             elif key == blt.TK_S:
                 if self.cursor.y < self.camera.height - 1:
                     self.cursor.y += 1
+                    self.reset_selection()
                 elif self.camera.posy < self.gmap.height - self.camera.height:
                     self.camera.posy += 1
+                    self.reset_selection()
                     # print(self.camera.posx, self.camera.posy)
 
             elif key == blt.TK_MOUSE_LEFT:
                 self.mouse_x = blt.state(blt.TK_MOUSE_X)
                 self.mouse_y = blt.state(blt.TK_MOUSE_Y)
-                print(self.mouse_x, self.mouse_y)
+                self.reset_selection()
+                #print(self.mouse_x, self.mouse_y)
                 self.mouse_interaction()
 
-            game_loop = 1
-        return game_loop
+            elif key == blt.TK_SEMICOLON:
+                if blt.state(blt.TK_SHIFT):
+                    self.console_active = True
+
+            elif key == blt.TK_TAB:
+                if blt.state(blt.TK_SHIFT):
+                    self.select_cycle(-1)
+                else:
+                    self.select_cycle(1)
+
+            self.game_loop = 1
+        return self.game_loop
 
 
 if __name__ == '__main__':
