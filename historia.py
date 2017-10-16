@@ -79,7 +79,11 @@ class historia():
         self.gmap.actorgrid[10][10].append(1)
 
         ham1 = settlement.Settlement(12, 5, Culture.GREEK, 1, self.time)
+        ham1.add_housing(5)
         self.gmap.actorgrid[12][5].append(2)
+
+        vil1.setparent(ham1)
+        vil2.setparent(ham1)
 
         self.actor_list.append(vil1)
         self.actor_list.append(vil2)
@@ -101,14 +105,22 @@ class historia():
         blt.layer(2)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
         for actor in self.actor_list:
-            blt.put(actor.posx * 2, actor.posy, 0xE000 + actor.id.value)
+            if (actor.posx >= self.camera.posx and actor.posx <
+                self.camera.posx + self.camera.width and
+                actor.posy >= self.camera.posy and actor.posy <
+                self.camera.posy + self.camera.height):
+
+                cx = actor.posx - self.camera.posx
+                cy = actor.posy - self.camera.posy
+                blt.put(cx * 2, cy, 0xE000 + actor.id.value)
+
         # print selected actor
         x = self.cursor.x + self.camera.posx
         y = self.cursor.y + self.camera.posy
         a = self.gmap.actorgrid[x][y]
         if a:
             ai = self.actor_list[a[self.select]]
-            blt.put(ai.posx * 2, ai.posy, 0xE000 + ai.id.value)
+            blt.put(self.cursor.x * 2, self.cursor.y, 0xE000 + ai.id.value)
 
     def print_overlay(self):
         blt.layer(4)
@@ -126,21 +138,24 @@ class historia():
         # print(self.gmap.actorgrid[x][y])
 
         a = self.gmap.actorgrid[x][y]
-        if a:
-            if self.select < len(a):
-                actor = self.actor_list[a[self.select]]
-                blt.puts(82, 5, actor.id.name)
-                if actor.type == 'Villager':
-                    actor.setstats(self.time)
-                    for i, person in enumerate(actor.poplist, 0):
-                        blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
-                        if person.gender == Gender.MALE:
-                            g = 'M'
-                        else:
-                            g = 'F'
-                        blt.puts(99, 6+i, "%s" % (g))
-                        blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
-                    blt.puts(82, 26, "Productivity: %g" % (actor.productivity))
+        if a and self.select < len(a):
+            actor = self.actor_list[a[self.select]]
+            blt.puts(82, 5, actor.id.name)
+            if actor.type == 'Villager':
+                actor.setstats(self.time)
+                for i, person in enumerate(actor.poplist, 0):
+                    blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
+                    if person.gender == Gender.MALE:
+                        g = 'M'
+                    else:
+                        g = 'F'
+                    blt.puts(99, 6+i, "%s" % (g))
+                    blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
+                blt.puts(82, 26, "Productivity: %g" % (actor.productivity))
+            if actor.type == 'Hamlet':
+                blt.puts(82, 7, "%s" % (actor.name))
+                blt.puts(82, 8, "Founded in %g" % (actor.founding.year))
+                blt.puts(82, 9, "Population: %d/%d" % (actor.population, actor.capacity))
 
         """for actor in self.actor_list:
             if actor.posx == x and actor.posy == y:

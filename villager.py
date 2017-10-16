@@ -20,6 +20,7 @@ class Villager(actor.Actor):
         self.poplist = []
         self.lastdate = date
         self.culture = culture
+        self.parent = None
 
         self.productivity = 0.0
 
@@ -38,6 +39,11 @@ class Villager(actor.Actor):
 
     def __generate_random_surname(self):
         return ''
+
+    def setparent(self, settlement):
+        # set settlement where the villager lives
+        self.parent = settlement
+        self.parent.add_citizen(self)
 
     def setstats(self, time):
         # productivity
