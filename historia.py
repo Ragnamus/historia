@@ -55,6 +55,7 @@ class historia():
 
         # set up map
         self.gmap.random_grass_sq(60, 0.1)
+        self.gmap.add_random_forest(8, 6)
 
     def hello(self):
         blt.printf(1, 1, 'Hello World')
@@ -101,8 +102,30 @@ class historia():
                 hexcode = 0xE000 + self.gmap.grid[gridx][gridy].value
                 blt.put(c * 2, r, hexcode)
 
-    def print_actors(self):
+    def print_vegetation(self):
         blt.layer(2)
+        blt.clear_area(0, 0, self.camera.width, self.camera.height)
+        for r, row in enumerate(range(self.camera.height)):
+            for c, element in enumerate(range(self.camera.width)):
+                gridx = c + self.camera.posx
+                gridy = r + self.camera.posy
+                do_nothing = False
+
+                w = self.gmap.woodgrid[gridx][gridy]
+                if w >= 5:
+                    hexcode = 0xE000 + 6
+                elif w >= 3:
+                    hexcode = 0xE000 + 5
+                elif w >= 1:
+                    hexcode = 0xE000 + 4
+                else:
+                    do_nothing = True
+                if not do_nothing:
+                    blt.put(c * 2, r, hexcode)
+
+
+    def print_actors(self):
+        blt.layer(3)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
         for actor in self.actor_list:
             if (actor.posx >= self.camera.posx and actor.posx <
@@ -206,6 +229,8 @@ class historia():
     def mainloop(self):
         # print map
         self.print_grid()
+        # print vegetation
+        self.print_vegetation()
         # print actors
         self.print_actors()
         # print overlay
