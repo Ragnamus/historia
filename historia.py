@@ -18,7 +18,7 @@ class historia():
     CLASS: main historia class
     """
     def __init__(self):
-        self.gmap = gamemap.Gamemap()
+        self.gmap = gamemap.Gamemap(60, 0.1)
         self.camera = camera.Camera(40, 40)
         self.cursor = cursor.Cursor()
         self.console = console.Console()
@@ -54,8 +54,10 @@ class historia():
         blt.set("U+E000: toen.png, size=16x16, align=top-left")
 
         # set up map
-        self.gmap.random_grass_sq(60, 0.1)
         self.gmap.add_random_forest(8, 6)
+        self.gmap.add_random_river(30)
+        self.gmap.add_random_river(30)
+        self.gmap.add_random_river(30)
 
     def hello(self):
         blt.printf(1, 1, 'Hello World')
@@ -102,8 +104,12 @@ class historia():
                 hexcode = 0xE000 + self.gmap.grid[gridx][gridy].value
                 blt.put(c * 2, r, hexcode)
 
-    def print_vegetation(self):
         blt.layer(2)
+        blt.clear_area(0, 0, self.camera.width, self.camera.height)
+
+
+    def print_vegetation(self):
+        blt.layer(3)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
         for r, row in enumerate(range(self.camera.height)):
             for c, element in enumerate(range(self.camera.width)):
@@ -111,7 +117,13 @@ class historia():
                 gridy = r + self.camera.posy
                 do_nothing = False
 
-                w = self.gmap.woodgrid[gridx][gridy]
+                q = int(self.gmap.watergrid[gridx, gridy])
+                if q > 0:
+                    hexcode = 0xE000 + q
+                    blt.put(c * 2, r, hexcode)
+                    continue
+
+                w = self.gmap.woodgrid[gridx, gridy]
                 if w >= 5:
                     hexcode = 0xE000 + 6
                 elif w >= 3:
@@ -125,7 +137,7 @@ class historia():
 
 
     def print_actors(self):
-        blt.layer(3)
+        blt.layer(4)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
         for actor in self.actor_list:
             if (actor.posx >= self.camera.posx and actor.posx <
@@ -146,8 +158,11 @@ class historia():
             blt.put(self.cursor.x * 2, self.cursor.y, 0xE000 + ai.id.value)
 
     def print_overlay(self):
-        blt.layer(4)
+        blt.layer(5)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
+
+        listmax = 20
+
         selectcode = 0xE000 + TileType.SELECTY.value
         # selection
         blt.put(self.cursor.x * 2, self.cursor.y, selectcode)
@@ -166,7 +181,8 @@ class historia():
             blt.puts(82, 5, actor.id.name)
             if actor.type == 'Villager':
                 actor.setstats(self.time)
-                for i, person in enumerate(actor.poplist, 0):
+                for i, person in enumerate(actor.poplist,
+                                           start=(listmax * self.page_number)):
                     blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
                     if person.gender == Gender.MALE:
                         g = 'M'
@@ -174,7 +190,12 @@ class historia():
                         g = 'F'
                     blt.puts(99, 6+i, "%s" % (g))
                     blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
-                blt.puts(82, 26, "Productivity: %g" % (actor.productivity))
+                    if i >= (listmax * (self.page_number+1)) - 1:
+                        break
+
+                blt.puts(82, 26, "<%i/%i> [[cycle with c]]" % (
+                    self.page_number+1, (len(actor.poplist) // listmax) + 1))
+                blt.puts(82, 28, "Productivity: %g" % (actor.productivity))
             if actor.type == 'Hamlet':
                 blt.puts(82, 7, "%s" % (actor.name))
                 blt.puts(82, 8, "Founded in %g" % (actor.founding.year))
@@ -342,6 +363,10 @@ class historia():
                     self.select_cycle(-1)
                 else:
                     self.select_cycle(1)
+
+            elif key == BLT.TK_C:
+                self.page_number += 1
+                
 
             self.game_loop = 1
         return self.game_loop
