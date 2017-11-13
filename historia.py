@@ -29,11 +29,16 @@ class historia():
 
         self.time = calendar.Calendar()
 
+        self.overlaylistsize = 20
         self.page_number = 0
         self.game_loop = 1
         self.console_active = False
+        self.overlay_update = False
         self.current_command = ""
         self.select = 0
+
+        self.tilelist = []
+        self.textlist = []
 
     def setup(self):
         print("setup...")
@@ -73,7 +78,7 @@ class historia():
 
         # create a basic villager token
         vil1 = villager.Villager(10, 10, Culture.GREEK, 1, self.time)
-        vil1.populate_new_random(8, 20.0, 3.0)
+        vil1.populate_new_random(12, 20.0, 3.0)
         self.gmap.actorgrid[10][10].append(0)
 
         # create another villager token on top of the first
@@ -157,64 +162,73 @@ class historia():
             ai = self.actor_list[a[self.select]]
             blt.put(self.cursor.x * 2, self.cursor.y, 0xE000 + ai.id.value)
 
-    def print_overlay(self):
-        blt.layer(5)
-        blt.clear_area(0, 0, self.camera.width, self.camera.height)
+    def change_overlay(self):
+        listmax = self.overlaylistsize
 
-        listmax = 20
+        self.tilelist = []
+        self.textlist = []
 
-        selectcode = 0xE000 + TileType.SELECTY.value
         # selection
-        blt.put(self.cursor.x * 2, self.cursor.y, selectcode)
+        selectcode = 0xE000 + TileType.SELECTY.value
+        self.tilelist.append((self.cursor.x * 2, self.cursor.y, selectcode))
 
         # info part
         x = self.cursor.x + self.camera.posx
         y = self.cursor.y + self.camera.posy
-        blt.puts(82, 1, "(%d, %d)" % (x, y))
-        blt.puts(82, 3, self.console.get_info(self.gmap, x, y))
+        self.textlist.append((82, 1, "(%d, %d)" % (x, y)))
+        self.textlist.append((82, 3, self.console.get_info(self.gmap, x, y)))
 
         # print(self.gmap.actorgrid[x][y])
 
         a = self.gmap.actorgrid[x][y]
-        if a and self.select < len(a):
-            actor = self.actor_list[a[self.select]]
-            blt.puts(82, 5, actor.id.name)
-            if actor.type == 'Villager':
-                actor.setstats(self.time)
-                for i, person in enumerate(actor.poplist,
-                                           start=(listmax * self.page_number)):
-                    blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
-                    if person.gender == Gender.MALE:
-                        g = 'M'
-                    else:
-                        g = 'F'
-                    blt.puts(99, 6+i, "%s" % (g))
-                    blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
-                    if i >= (listmax * (self.page_number+1)) - 1:
-                        break
+        if (not a) or (self.select > len(a)):
+            self.overlay_update = False
+            return
 
-                blt.puts(82, 26, "<%i/%i> [[cycle with c]]" % (
-                    self.page_number+1, (len(actor.poplist) // listmax) + 1))
-                blt.puts(82, 28, "Productivity: %g" % (actor.productivity))
-            if actor.type == 'Hamlet':
-                blt.puts(82, 7, "%s" % (actor.name))
-                blt.puts(82, 8, "Founded in %g" % (actor.founding.year))
-                blt.puts(82, 9, "Population: %d/%d" % (actor.population, actor.capacity))
+        actor = self.actor_list[a[self.select]]
+        self.textlist.append((82, 5, actor.id.name))
+        if actor.type == 'Villager':
+            actor.setstats(self.time)
+            off = listmax * self.page_number
+            print(off)
+            for i, person in enumerate(actor.poplist[off:]):
+                self.textlist.append((82, 6+i, "%s %s" % (
+                    person.name, person.surname)))
+                if person.gender == Gender.MALE:
+                    g = 'M'
+                else:
+                    g = 'F'
+                self.textlist.append((99, 6+i, "%s" % (g)))
+                self.textlist.append((102, 6+i, "Age:%d" % (
+                    person.birth.getAge(self.time))))
+                if i >= off + listmax - 1:
+                    break
 
-        """for actor in self.actor_list:
-            if actor.posx == x and actor.posy == y:
-                blt.puts(82, 5, actor.id.name)
-            if actor.posx == x and actor.posy == y and actor.type == 'Villager':
-                actor.setstats(self.time)
-                for i, person in enumerate(actor.poplist, 0):
-                    blt.puts(82, 6+i, "%s %s" % (person.name, person.surname))
-                    if person.gender == Gender.MALE:
-                        g = 'M'
-                    else:
-                        g = 'F'
-                    blt.puts(99, 6+i, "%s" % (g))
-                    blt.puts(102, 6+i, "Age:%d" % (person.birth.getAge(self.time)))
-                blt.puts(82, 26, "Productivity: %g" % (actor.productivity))"""
+            self.textlist.append((82, 26, "<%i/%i> [[cycle with c]]" % (
+                self.page_number+1, (len(actor.poplist) // listmax) + 1)))
+            self.textlist.append((82, 28, "Productivity: %g" % (
+                actor.productivity)))
+        if actor.type == 'Hamlet':
+            self.textlist.append((82, 7, "%s" % (actor.name)))
+            self.textlist.append((82, 8, "Founded in %g" % (
+                actor.founding.year)))
+            self.textlist.append((82, 9, "Population: %d/%d" % (
+                actor.population, actor.capacity)))
+
+        self.overlay_update = False
+
+    def print_static_overlay(self):
+        blt.layer(5)
+        blt.clear_area(0, 0, self.camera.width, self.camera.height)
+
+        for tile in self.tilelist:
+            blt.put(tile[0], tile[1], tile[2])
+        for text in self.textlist:
+            blt.puts(text[0], text[1], text[2])
+
+    def print_dynamic_overlay(self):
+        blt.layer(6)
+        blt.clear_area(0, 0, self.camera.width, self.camera.height)
 
     def mouse_interaction(self):
         if self.mouse_x > 0 and self.mouse_x < 200:
@@ -234,6 +248,27 @@ class historia():
 
     def reset_selection(self):
         self.select = 0
+        self.overlay_update = True
+
+    def select_page(self, page=1):
+        x = self.cursor.x + self.camera.posx
+        y = self.cursor.y + self.camera.posy
+        a = self.gmap.actorgrid[x][y]
+        if a:
+            ai = self.actor_list[a[self.select]]
+            if ai.type == 'Villager':
+                max_pages = len(ai.poplist) // self.overlaylistsize + 1
+                new_page = self.page_number + page
+                while new_page < 0:
+                    new_page += max_pages
+                while new_page >= max_pages:
+                    new_page -= max_pages
+                if not new_page == self.page_number:
+                    self.overlay_update = True
+                self.page_number = new_page
+
+
+
 
     def select_cycle(self, cycle=1):
         x = self.cursor.x + self.camera.posx
@@ -245,6 +280,9 @@ class historia():
                 new_pos += len(a)
             while new_pos >= len(a):
                 new_pos -= len(a)
+            if not new_pos == self.select:
+                self.overlay_update = True
+                self.page_number = 0
             self.select = new_pos
 
     def mainloop(self):
@@ -255,7 +293,10 @@ class historia():
         # print actors
         self.print_actors()
         # print overlay
-        self.print_overlay()
+        if self.overlay_update:
+            self.change_overlay()
+        self.print_static_overlay()
+        self.print_dynamic_overlay()
 
         # print command if relevant
         if self.console_active:
@@ -364,9 +405,9 @@ class historia():
                 else:
                     self.select_cycle(1)
 
-            elif key == BLT.TK_C:
-                self.page_number += 1
-                
+            elif key == blt.TK_C:
+                self.select_page()
+
 
             self.game_loop = 1
         return self.game_loop
