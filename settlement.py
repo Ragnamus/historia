@@ -2,6 +2,7 @@ import actor
 from e_tile import TileType
 import calendar
 from e_culture import Culture
+import resource
 
 
 class Settlement(actor.Actor):
@@ -43,6 +44,14 @@ class Settlement(actor.Actor):
     def add_citizen(self, villager):
         self.villager_list.append(villager)
         self.population += len(villager.poplist)
+
+    def add_resource(self, res):
+        if res.key in self.resource_dict:
+            # just add to the count
+            self.resource_dict[res.key].count += res.resdata.count
+        else:
+            # add resource to resource list
+            self.resource_dict[res.key] = res.resdata
 
     def populate_new_random(self):
         pass

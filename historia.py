@@ -2,6 +2,8 @@ from bearlibterminal import terminal as blt
 from e_tile import TileType
 from e_culture import Culture
 from e_person import Gender
+from e_state import State
+from e_omode import OMode
 import random
 import camera
 import gamemap
@@ -11,6 +13,8 @@ import actor
 import villager
 import calendar
 import settlement
+import laminate
+import resource
 
 
 class historia():
@@ -20,6 +24,7 @@ class historia():
     def __init__(self):
         self.gmap = gamemap.Gamemap(60, 0.1)
         self.camera = camera.Camera(40, 40)
+        self.laminate = laminate.Laminate(40, 40)
         self.cursor = cursor.Cursor()
         self.console = console.Console()
         self.actor_list = []
@@ -37,8 +42,13 @@ class historia():
         self.current_command = ""
         self.select = 0
 
+        self.active_actor = None
+
         self.tilelist = []
         self.textlist = []
+
+        self.state = State.VIEW
+        self.overlay_mode = OMode.BASIC
 
     def setup(self):
         print("setup...")
@@ -88,6 +98,8 @@ class historia():
 
         ham1 = settlement.Settlement(12, 5, Culture.GREEK, 1, self.time)
         ham1.add_housing(5)
+        chicken = resource.Resource('chicken', 1)
+        ham1.add_resource(chicken)
         self.gmap.actorgrid[12][5].append(2)
 
         vil1.setparent(ham1)
@@ -111,7 +123,13 @@ class historia():
 
         blt.layer(2)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
-
+        if self.state == State.MOVE:
+            # print movement
+            for r, row in enumerate(self.laminate.lgrid):
+                for c, element in enumerate(row):
+                    if element > -1:
+                        hexcode = 0xE000 + 204
+                        blt.put(r * 2, c, hexcode)
 
     def print_vegetation(self):
         blt.layer(3)
@@ -144,7 +162,7 @@ class historia():
     def print_actors(self):
         blt.layer(4)
         blt.clear_area(0, 0, self.camera.width, self.camera.height)
-        for actor in self.actor_list:
+        for actor in reversed(self.actor_list):
             if (actor.posx >= self.camera.posx and actor.posx <
                 self.camera.posx + self.camera.width and
                 actor.posy >= self.camera.posy and actor.posy <
@@ -162,7 +180,7 @@ class historia():
             ai = self.actor_list[a[self.select]]
             blt.put(self.cursor.x * 2, self.cursor.y, 0xE000 + ai.id.value)
 
-    def change_overlay(self):
+    def update_overlay(self):
         listmax = self.overlaylistsize
 
         self.tilelist = []
@@ -186,11 +204,13 @@ class historia():
             return
 
         actor = self.actor_list[a[self.select]]
-        self.textlist.append((82, 5, actor.id.name))
+        #self.textlist.append((82, 5, actor.id.name))
         if actor.type == 'Villager':
+            self.textlist.append((82, 5,
+                "Villager - Count=%i" % (len(actor.poplist))))
             actor.setstats(self.time)
             off = listmax * self.page_number
-            print(off)
+            #print(off)
             for i, person in enumerate(actor.poplist[off:]):
                 self.textlist.append((82, 6+i, "%s %s" % (
                     person.name, person.surname)))
@@ -208,12 +228,18 @@ class historia():
                 self.page_number+1, (len(actor.poplist) // listmax) + 1)))
             self.textlist.append((82, 28, "Productivity: %g" % (
                 actor.productivity)))
+
         if actor.type == 'Hamlet':
-            self.textlist.append((82, 7, "%s" % (actor.name)))
-            self.textlist.append((82, 8, "Founded in %g" % (
-                actor.founding.year)))
-            self.textlist.append((82, 9, "Population: %d/%d" % (
-                actor.population, actor.capacity)))
+            if self.overlay_mode == OMode.BASIC:
+                self.textlist.append((82, 7, "%s" % (actor.name)))
+                self.textlist.append((82, 8, "Founded in %g" % (
+                    actor.founding.year)))
+                self.textlist.append((82, 9, "Population: %d/%d" % (
+                    actor.population, actor.capacity)))
+            elif self.overlay_mode == OMode.ADDIT:
+                # print inventory
+                for key, resource in actor.resource_dict.items():
+                    print(key)
 
         self.overlay_update = False
 
@@ -239,6 +265,11 @@ class historia():
 
     def print_console(self):
         blt.puts(2, 39, ":%s" % (self.current_command))
+
+        if self.state == State.MOVE:
+            for ix, row in enumerate(self.laminate.lgrid):
+                for iy, col in enumerate(row):
+                    blt.puts(ix * 2, iy, "%i" % (self.laminate.lgrid[ix, iy]))
 
     def process_command(self):
         if self.current_command == "quit":
@@ -268,6 +299,40 @@ class historia():
                 self.page_number = new_page
 
 
+    def select_state(self, state=State.VIEW):
+        if self.state == state:
+            self.state = State.VIEW
+            if state == State.MOVE:
+                self.laminate.reset_move()
+                # move if cursor change
+                x = self.cursor.x + self.camera.posx
+                y = self.cursor.y + self.camera.posy
+
+        else:
+            self.state = state
+
+        # try move
+        x = self.cursor.x + self.camera.posx
+        y = self.cursor.y + self.camera.posy
+
+        if self.state == State.MOVE:
+            a = self.gmap.actorgrid[x][y]
+            # is this a movable actor?
+            if (not a):
+                self.state = State.VIEW
+                #print('no actor')
+                return
+            actor = self.actor_list[a[self.select]]
+            if not actor.movable:
+                #print('cannot move')
+                return
+            # we can move, calculate the movement!
+            #print('can move!')
+            self.laminate.add_move(self.cursor.x,
+                                   self.cursor.y)
+            self.laminate.fill_move(actor)
+
+            self.active_actor = actor
 
 
     def select_cycle(self, cycle=1):
@@ -293,8 +358,8 @@ class historia():
         # print actors
         self.print_actors()
         # print overlay
-        if self.overlay_update:
-            self.change_overlay()
+        self.update_overlay()
+
         self.print_static_overlay()
         self.print_dynamic_overlay()
 
@@ -314,6 +379,8 @@ class historia():
                 self.game_loop = 1
                 self.console_active = False
                 self.process_command()
+            elif blt.check(blt.TK_BACKSPACE):
+                self.current_command = self.current_command[:-1]
             elif blt.check(blt.TK_CHAR):
                 self.current_command += (chr(blt.state(blt.TK_CHAR)))
                 #print(self.current_command)
@@ -321,11 +388,37 @@ class historia():
             else:
                 self.game_loop = 1
 
+        elif key == blt.TK_RETURN:
+            if self.state == State.MOVE:
+                # move to cursor
+                x = self.cursor.x + self.camera.posx
+                y = self.cursor.y + self.camera.posy
+
+                print(self.laminate.lgrid[x, y])
+
+                if self.laminate.lgrid[x, y] > -1:
+                    px = self.active_actor.posx
+                    py = self.active_actor.posy
+                    self.active_actor.mv_points = self.laminate.lgrid[x, y]
+                    self.active_actor.posx = x
+                    self.active_actor.posy = y
+                    n = self.gmap.actorgrid[px][py][self.select]
+                    del self.gmap.actorgrid[px][py][self.select]
+                    self.gmap.actorgrid[x][y].append(n)
+
+                    self.state = State.VIEW
+                    self.laminate.reset_move()
+
+            if self.state == State.VIEW:
+                # additional info
+                self.overlay_mode = OMode.ADDIT
+
         else:
             if (key == blt.TK_RIGHT and
                     self.camera.posx <
                     self.gmap.width - self.camera.width):
 
+                self.select_state(State.VIEW)
                 self.camera.posx += 1
                 self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
@@ -333,6 +426,7 @@ class historia():
             elif (key == blt.TK_LEFT and
                   self.camera.posx > 0):
 
+                self.select_state(State.VIEW)
                 self.camera.posx -= 1
                 self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
@@ -341,6 +435,7 @@ class historia():
                   self.camera.posy <
                   self.gmap.height - self.camera.height):
 
+                self.select_state(State.VIEW)
                 self.camera.posy += 1
                 self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
@@ -348,6 +443,7 @@ class historia():
             elif (key == blt.TK_UP and
                   self.camera.posy > 0):
 
+                self.select_state(State.VIEW)
                 self.camera.posy -= 1
                 self.reset_selection()
                 # print(self.camera.posx, self.camera.posy)
@@ -406,7 +502,12 @@ class historia():
                     self.select_cycle(1)
 
             elif key == blt.TK_C:
+                # change active page on overlay
                 self.select_page()
+
+            elif key == blt.TK_M:
+                # move selected character
+                self.select_state(State.MOVE)
 
 
             self.game_loop = 1

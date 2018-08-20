@@ -21,6 +21,9 @@ class Villager(actor.Actor):
         self.lastdate = date
         self.culture = culture
         self.parent = None
+        self.movable = True
+        self.mv_max = 4.0
+        self.mv_points = self.mv_max
 
         self.productivity = 0.0
 
