@@ -13,6 +13,7 @@ class Settlement(actor.Actor):
         self.soc_id = sid
         self.building_list = []
         self.villager_list = []
+        self.resource_dict = {}
         self.army_list = []
         self.founding = date
         self.population = 0
